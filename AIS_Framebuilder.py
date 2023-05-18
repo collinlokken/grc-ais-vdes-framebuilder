@@ -15,7 +15,7 @@ result = []
 class blk(gr.basic_block):  # other base classes are basic_block, decim_block, interp_block
     """Embedded Python Block example - a simple multiply const"""
 
-    def __init__(self, longitude=9.344559, latitude=63.044153):  # only default arguments here
+    def __init__(self, repeat=0, mmsi=247320162, status=15, rot=128, speed=0.1, accuracy=0, longitude=9.344559, latitude=63.044153, course=83.4, true_heading=511, ts=38, flags=0, rstatus=0):  # only default arguments here
         """arguments to this function show up as parameters in GRC"""
         gr.sync_block.__init__(
             self,
@@ -26,17 +26,37 @@ class blk(gr.basic_block):  # other base classes are basic_block, decim_block, i
         # if an attribute with the same name as a parameter is found,
         # a callback is registered (properties work, too).
         #self.example_param = example_param
-
-        self.latitude = latitude
+        self.repeat = repeat
+        self.mmsi = mmsi
+        self.status = status
+        self.rot = rot
+        self.speed = speed
+        self.accuracy = accuracy
         self.longitude = longitude
+        self.latitude = latitude
+        self.course = course
+        self.true_heading = true_heading
+        self.ts = ts
+        self.flags = flags
+        self.rstatus = rstatus
 
-    def generate_payload(self, lng, lat):
-        first = "0000010000111010111101110011100110101011111000000000010001100"
-        last = "0010111011101111111111001100000000000000000000000000"
+    def generate_payload(self, repeat, mmsi, status, rot, speed, accuracy, lng, lat, course, true_heading, ts, flags, rstatus):
+        msg_type = "000001"
+        repeat = bin(repeat)[2:].rjust(2, "0") #2
+        mmsi =  bin(mmsi)[2:].rjust(30, "0") #30
+        status = bin(status)[2:].rjust(4, "0") #4
+        rot =   bin(rot)[2:].rjust(8, "0") #8
+        speed = bin(round(speed*10))[2:].rjust(10, "0") # 10
+        accuracy = bin(accuracy)[2:].rjust(1, "0") #1
         longitude = '{0:b}'.format(int(round(lng*600000)) & 0b1111111111111111111111111111).rjust(28,'0')
         latitude =  '{0:b}'.format(int(round(lat*600000)) & 0b111111111111111111111111111).rjust(27,'0')
+        course = bin(round(course*10))[2:].rjust(12, "0") #12
+        true_heading = bin(true_heading)[2:].rjust(9, "0") #9
+        ts = bin(ts)[2:].rjust(6, "0") #6
+        flags = bin(flags)[2:].rjust(6, "0") #6
+        rstatus = bin(rstatus)[2:].rjust(19, "0") #19
+        return msg_type+repeat+mmsi+status+rot+speed+accuracy+longitude+latitude+course+true_heading+ts+flags+rstatus
 
-        return first + longitude + latitude + last
     
 
     CRC16_XMODEM_TABLE = [
@@ -178,7 +198,7 @@ class blk(gr.basic_block):  # other base classes are basic_block, decim_block, i
         start_flag = "01111110"
         end_flag = start_flag
 
-        bitstring_payload = self.generate_payload(self.longitude, self.latitude)
+        bitstring_payload = self.generate_payload(self.repeat, self.mmsi, self.status, self.rot, self.speed, self.accuracy, self.lng, self.lat, self.course, self.true_heading, self.ts, self.flags, self.rstatus)
         int_payload = int(bitstring_payload, 2)
         byte_payload = int_payload.to_bytes(len(bitstring_payload)//8,'big')
 
