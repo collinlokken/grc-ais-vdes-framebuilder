@@ -36,8 +36,6 @@ from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio.qtgui import Range, RangeWidget
 import epy_block_0
-import osmosdr
-import time
 
 from gnuradio import qtgui
 
@@ -77,6 +75,9 @@ class top_block(gr.top_block, Qt.QWidget):
         ##################################################
         # Variables
         ##################################################
+        self.true_heading = true_heading = 0
+        self.status = status = 15
+        self.speed = speed = 7
         self.samp_rate = samp_rate = 2e6
         self.longitude = longitude = 9.344559
         self.latitude = latitude = 63.044153
@@ -87,10 +88,32 @@ class top_block(gr.top_block, Qt.QWidget):
         ##################################################
         # Blocks
         ##################################################
-        self._longitude_range = Range(-180, 180, 0.000001, 9.344559, 200)
+        self._true_heading_range = Range(0, 359, 1, 0, 200)
+        self._true_heading_win = RangeWidget(self._true_heading_range, self.set_true_heading, 'True Heading', "counter_slider", float)
+        self.top_layout.addWidget(self._true_heading_win)
+        # Create the options list
+        self._status_options = [0, 1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 14, 15]
+        # Create the labels list
+        self._status_labels = ['Under way using engine', 'At anchor', 'Not under command', 'Restricted manoeuverability', 'Constrained by her draught', 'Moored', 'Aground', 'Engaged in Fishing', 'Under way sailing', 'Power-driven vessel towing astern (regional use)', 'Power-driven vessel pushing ahead or towing alongside (regional use).', 'AIS-SART is active', 'Ubdefined (default)']
+        # Create the combo box
+        self._status_tool_bar = Qt.QToolBar(self)
+        self._status_tool_bar.addWidget(Qt.QLabel('Status' + ": "))
+        self._status_combo_box = Qt.QComboBox()
+        self._status_tool_bar.addWidget(self._status_combo_box)
+        for _label in self._status_labels: self._status_combo_box.addItem(_label)
+        self._status_callback = lambda i: Qt.QMetaObject.invokeMethod(self._status_combo_box, "setCurrentIndex", Qt.Q_ARG("int", self._status_options.index(i)))
+        self._status_callback(self.status)
+        self._status_combo_box.currentIndexChanged.connect(
+            lambda i: self.set_status(self._status_options[i]))
+        # Create the radio buttons
+        self.top_layout.addWidget(self._status_tool_bar)
+        self._speed_range = Range(0, 102, 1, 7, 200)
+        self._speed_win = RangeWidget(self._speed_range, self.set_speed, 'Speed', "counter_slider", float)
+        self.top_layout.addWidget(self._speed_win)
+        self._longitude_range = Range(-180, 180, 0.1, 9.344559, 200)
         self._longitude_win = RangeWidget(self._longitude_range, self.set_longitude, 'longitude', "counter_slider", float)
         self.top_layout.addWidget(self._longitude_win)
-        self._latitude_range = Range(-90, 90, 0.000001, 63.044153, 200)
+        self._latitude_range = Range(-90, 90, 0.1, 63.044153, 200)
         self._latitude_win = RangeWidget(self._latitude_range, self.set_latitude, 'latitude', "counter_slider", float)
         self.top_layout.addWidget(self._latitude_win)
         # Create the options list
@@ -149,19 +172,7 @@ class top_block(gr.top_block, Qt.QWidget):
 
         self._qtgui_freq_sink_x_0_win = sip.wrapinstance(self.qtgui_freq_sink_x_0.pyqwidget(), Qt.QWidget)
         self.top_layout.addWidget(self._qtgui_freq_sink_x_0_win)
-        self.osmosdr_sink_0 = osmosdr.sink(
-            args="numchan=" + str(1) + " " + ""
-        )
-        self.osmosdr_sink_0.set_time_unknown_pps(osmosdr.time_spec_t())
-        self.osmosdr_sink_0.set_sample_rate(samp_rate)
-        self.osmosdr_sink_0.set_center_freq(center_freq, 0)
-        self.osmosdr_sink_0.set_freq_corr(0, 0)
-        self.osmosdr_sink_0.set_gain(10, 0)
-        self.osmosdr_sink_0.set_if_gain(20, 0)
-        self.osmosdr_sink_0.set_bb_gain(20, 0)
-        self.osmosdr_sink_0.set_antenna('', 0)
-        self.osmosdr_sink_0.set_bandwidth(0, 0)
-        self.epy_block_0 = epy_block_0.blk(longitude=longitude, latitude=latitude)
+        self.epy_block_0 = epy_block_0.blk(repeat=0, mmsi=247320162, status=status, rot=128, speed=speed, accuracy=0, longitude=longitude, latitude=latitude, course=83.4, true_heading=true_heading, ts=38, flags=0, rstatus=0)
         self.digital_gmsk_mod_0_0 = digital.gmsk_mod(
             samples_per_symbol=int(samp_rate/bit_rate),
             bt=0.4,
@@ -199,7 +210,6 @@ class top_block(gr.top_block, Qt.QWidget):
         self.connect((self.blocks_multiply_xx_0, 0), (self.blocks_multiply_const_vxx_0_1, 0))
         self.connect((self.blocks_multiply_xx_0_0, 0), (self.blocks_multiply_const_vxx_0_0, 0))
         self.connect((self.blocks_multiply_xx_0_0, 0), (self.blocks_multiply_const_vxx_0_1_0, 0))
-        self.connect((self.blocks_selector_0, 0), (self.osmosdr_sink_0, 0))
         self.connect((self.blocks_selector_0, 0), (self.qtgui_freq_sink_x_0, 0))
         self.connect((self.digital_gmsk_mod_0, 0), (self.blocks_multiply_xx_0, 0))
         self.connect((self.digital_gmsk_mod_0_0, 0), (self.blocks_multiply_xx_0_0, 0))
@@ -212,6 +222,28 @@ class top_block(gr.top_block, Qt.QWidget):
         self.settings.setValue("geometry", self.saveGeometry())
         event.accept()
 
+    def get_true_heading(self):
+        return self.true_heading
+
+    def set_true_heading(self, true_heading):
+        self.true_heading = true_heading
+        self.epy_block_0.true_heading = self.true_heading
+
+    def get_status(self):
+        return self.status
+
+    def set_status(self, status):
+        self.status = status
+        self._status_callback(self.status)
+        self.epy_block_0.status = self.status
+
+    def get_speed(self):
+        return self.speed
+
+    def set_speed(self, speed):
+        self.speed = speed
+        self.epy_block_0.speed = self.speed
+
     def get_samp_rate(self):
         return self.samp_rate
 
@@ -219,7 +251,6 @@ class top_block(gr.top_block, Qt.QWidget):
         self.samp_rate = samp_rate
         self.analog_sig_source_x_0.set_sampling_freq(self.samp_rate)
         self.analog_sig_source_x_0_0.set_sampling_freq(self.samp_rate)
-        self.osmosdr_sink_0.set_sample_rate(self.samp_rate)
         self.qtgui_freq_sink_x_0.set_frequency_range(self.center_freq, self.samp_rate)
 
     def get_longitude(self):
@@ -249,7 +280,6 @@ class top_block(gr.top_block, Qt.QWidget):
 
     def set_center_freq(self, center_freq):
         self.center_freq = center_freq
-        self.osmosdr_sink_0.set_center_freq(self.center_freq, 0)
         self.qtgui_freq_sink_x_0.set_frequency_range(self.center_freq, self.samp_rate)
 
     def get_bit_rate(self):
