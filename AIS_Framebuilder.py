@@ -198,7 +198,7 @@ class blk(gr.basic_block):  # other base classes are basic_block, decim_block, i
         start_flag = "01111110"
         end_flag = start_flag
 
-        bitstring_payload = self.generate_payload(self.repeat, self.mmsi, self.status, self.rot, self.speed, self.accuracy, self.lng, self.lat, self.course, self.true_heading, self.ts, self.flags, self.rstatus)
+        bitstring_payload = self.generate_payload(self.repeat, self.mmsi, self.status, self.rot, self.speed, self.accuracy, self.longitude, self.latitude, self.course, self.true_heading, self.ts, self.flags, self.rstatus)
         int_payload = int(bitstring_payload, 2)
         byte_payload = int_payload.to_bytes(len(bitstring_payload)//8,'big')
 
