@@ -7,3 +7,7 @@ This project was inspired by the works carried out by [Trendmicro](https://githu
 # Dependencies
 Please also download and install the grc block for your SDR (Osmocom, UHD ...)
 
+# Contents
+AIS_Framebuilder.py		The python GRC frame builder block
+AiS_TX.grc			GRC Flowgraph which can be imported into GNU Radio Companion
+top_block.py			The full python program for the flow graph, runnable in the terminal

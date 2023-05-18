@@ -35,7 +35,7 @@ from argparse import ArgumentParser
 from gnuradio.eng_arg import eng_float, intx
 from gnuradio import eng_notation
 from gnuradio.qtgui import Range, RangeWidget
-import epy_block_0
+import AIS_Framebuilder as epy_block_0
 
 from gnuradio import qtgui
 
