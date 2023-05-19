@@ -32,7 +32,8 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         examples of any other link ID frame generation. In order to validate the code, it was 
         neccessary to include link ID 5'''
     
-    linkID_datagram_length = {11: 400, 17: 1840, 19: 5584, 5:256}
+    
+    linkID_datagram_length = {11: 400, 17: 1840, 19: 5584, 5:256} #datagram length was determined by subtracting 32 from the FEC output bits value
     
 
     def append_padding(self, LinkID, message, linkID_datagram_length):
@@ -109,19 +110,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
       0xafb010b1, 0xab710d06, 0xa6322bdf, 0xa2f33668,
       0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4
         ]
-    '''
-    def crc32xmodem(self, data, crc=0xFFFFFFFF):  # 0xffff
-        """Calculate CRC-CCITT (XModem) variant of CRC16.
-        `data`      - data for calculating CRC, must be bytes
-        `crc`       - initial value
-        Return calculated value of CRC
-        """
-        return self._crc32(data, self.CRC32_MPEG_TABLE, crc)
-    '''
+    
     
     def _crc32(self, data, CRC32_MPEG_TABLE, crc=0xFFFFFFFF):
 
-        """Calculate CRC16 using the given table.
+        """Calculate CRC32 using the given table.
         `data`      - data for calculating CRC, must be bytes
         `crc`       - initial value
         `table`     - table for caclulating CRC (list of 256 integers)
@@ -135,14 +128,16 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     #Thanks to https://github.com/Michaelangel007/crc32 for demystifiying crc32
     #After the payload has been padded and appended a crc32 value, turbo encoding need to be done accordingly
 
+
+    
     permutation_primes = {5: [47,17,233,127,239,139,199,163],
                           11: [127,191,241,5,83,109,107,179],
                           17: [211,61,227,239,181,79,73,193],
-                          19: [137,101,223,41,67,131,61,47]}
+                          19: [137,101,223,41,67,131,61,47]} # list of permutation primes associated with a linkID
     k1_k2 = {5: [2,144],
              11: [2,216],
              17: [6,312],
-             19: [16,351]}
+             19: [16,351]} #list of k1 and k2 value for each link ID, used to calculate the permutation numbers
 
     def calculate_permutation(self,s, k1, k2, primes):
         '''
@@ -161,40 +156,26 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     def interleave(self, input, k1, k2, primes):
         #create an empty list to contain the permutated indices
         permuted_indices = []
-        #iterate with s values from 1-k, and use this to compute the permutated indice
+        #iterate with s values from 1->k, and use this to compute the permutation number
         for s in range(1,k1*k2+1):
             #append the new permutated indices:
             #indices are from 1-k.
         
             permuted_indices.append(self.calculate_permutation(s,k1,k2,primes))
             #print(s)
-        #print(permuted_indices)
-        #print(max(permuted_indices))
-        #print(min(permuted_indices))
-        #input_list = []
-        #for i in input:
-        #    input_list.append(i)
-        #print(permuted_indices)
         #check for duplicates in permuted indics
         if len(set(permuted_indices))!=len(permuted_indices):
             print("something is wrong, an duplication exists")
     
         # Generate a list of 0, with length similar to the input. 
         interleaved_list = [0] * len(input)
-        #print(interleaved_list)
         i = 0
+
         for permuted_indice in permuted_indices:
-            # put the i'th bit at its permutated spot. Python is 0 indexed, so need to be minus 1
+            # s bit read out should be pi(s). So 0 bit out should be input(pi(0)). Permutated indice contains values from 1-288, need to subtract 1 since python is 0 indexed
             interleaved_list[i] = input[permuted_indice-1]
             i += 1
-        #print(" ".join(interleaved_list))
-        #interleaved_check = interleaved_list.count('1')
-        #input_check = input_list.count('1')
-        #print(f'Numbers of 1 in interleaved : {interleaved_check}')
-        #print(f'Numbers of 1 in input : {input_check}')
-        #for s, pi_s in enumerate(permuted_indices):
-        #    interleaved_string[pi_s-1] = input[s]
-        #print(interleaved_list)
+
         return ''.join(interleaved_list)
 
 
@@ -207,9 +188,8 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         '''
         # Initialize shift register, should allways start with 0's
         shift_register = [0, 0, 0]
-        temp = 0
 
-        # Prepare output list
+        # Prepare output lists
         X = []
         Y1 = []
         Y2 = []
@@ -235,6 +215,8 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             shift_register.insert(0, xor)
             shift_register.pop()
 
+
+            #append the outpit data, to its associated list. 
             X.append(x)
             Y1.append(y1)
             Y2.append(y2)
@@ -353,23 +335,25 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         # Initialize the initialization squence according to the ITU specification
         init_sequence = [1,0,0,1,0,1,0,1,0,0,0,0,0,0,0]
 
-        #initialize empty output string
+        #intialize empty output 
         output_bits = ''
 
-        #for every bit
+        #for every bit in the input
         for bit in input_bits:
             input_bit = int(bit)
             
-            # Compute the feedback bit by XORing the specified bits in the polynomial, namely xor bit 14 and 15 from lfsr
+            # Compute the feedback bit by XORing the specified bits in the polynomial, namely xor bit 14 and 15 from init sequence
             feedback_bit = 0
             feedback_bit = init_sequence[len(init_sequence)-2]^init_sequence[len(init_sequence)-1]
             
-            # Shift the LFSR to the right by one, inserting the feedback bit at the left
+            # Shift the sequence to the right by one and inserting the feedback bit at 0
             init_sequence.pop()
             init_sequence.insert(0, feedback_bit)
             
             # XOR the input bit with the feedback bit to get the output bit
             output_bit = input_bit ^ feedback_bit
+
+            #append the output bit to the final string
             output_bits += str(output_bit)
         
         return output_bits
