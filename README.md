@@ -22,5 +22,8 @@ Please also download and install the grc block for your SDR (```gr-osmosdr```, `
 ```top_block.py```
 - The full python program for the flow graph, runnable in the terminal.
 
+```vde-ter-framebuilder.py```
+- The python GRC frame builder block for VDE-TER.
+
 # Disclaimer
 Both the AIS and VDES Frame builders are compliant with the mentioned ITU-R reccomendations regarding the construction of data frames, and are tools intended for educational and research purposes only. However, they do not cover other aspects such as Medium Access Control (MAC), which are needed to be fully compliant system. This software is provided "as-is" and does not replace commercially available products, and should not be used as such. Misuse of this software can be harmful, and the authors will not take any responsibility for illegal actions carried out using the tools found in this repository.
