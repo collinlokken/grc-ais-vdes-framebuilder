@@ -3,6 +3,8 @@ Python block AIS Framebuilder written for GNU Radio Companion >=3.8. (ITU-R_M.13
 
 Python block VDE-TER Framebuilder written for GNU Radio Companion >=3.8. (ITU-R_M.2092-1 compliant).
 
+![flowgraph](./ais_tx.png "Gnu Radio flowgraph for AISTX")
+
 # Acknowledgments
 This project was inspired by the works carried out by [Trendmicro](https://github.com/trendmicro/ais), who made the original AIS Frame Builder block in C++. Building on this, we have written an equivalent block in Python 3, which is now supported as an embedded block in GRC >=3.8. This block enables customization, and allows AIS ship values to be assigned at runtime using GRC widgets.
 
