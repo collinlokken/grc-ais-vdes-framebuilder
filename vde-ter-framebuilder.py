@@ -12,7 +12,7 @@ import time
 
 
 class blk(gr.sync_block):  # other base classes are basic_block, decim_block, interp_block
-    """Embedded Python Block example - a simple multiply const"""
+    """Embedded Python Block"""
 
     def __init__(self, LinkID=11, VDEMessage='0101000000001110101101111001101000101010011101011011110011010001011000100000000000000000001100100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'):  # only default arguments here
         """arguments to this function show up as parameters in GRC"""
@@ -30,10 +30,10 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         self.LinkID = LinkID 
         '''Link ID should only be 11, 17, 19. 5 is only included, because we could not find
         examples of any other link ID frame generation. In order to validate the code, it was 
-        neccessary to include link ID 5'''
+        neccessary to include link ID 5, the code also consists of modulation, so if link ID 19 
+        is used, the code does not work, according to the technical specifications in ITU'''
     
-    
-    linkID_datagram_length = {11: 400, 17: 1840, 19: 5584, 5:256} #datagram length was determined by subtracting 32 from the FEC output bits value
+    linkID_datagram_length = {11: 400, 17: 1840, 19: 5584, 5:256} #Datagram length that was determined by subtracting 32 from the FEC input
     
 
     def append_padding(self, LinkID, message, linkID_datagram_length):
@@ -110,11 +110,19 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
       0xafb010b1, 0xab710d06, 0xa6322bdf, 0xa2f33668,
       0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4
         ]
-    
+    '''
+    def crc32xmodem(self, data, crc=0xFFFFFFFF):  # 0xffff
+        """Calculate CRC-CCITT (XModem) variant of CRC16.
+        `data`      - data for calculating CRC, must be bytes
+        `crc`       - initial value
+        Return calculated value of CRC
+        """
+        return self._crc32(data, self.CRC32_MPEG_TABLE, crc)
+    '''
     
     def _crc32(self, data, CRC32_MPEG_TABLE, crc=0xFFFFFFFF):
 
-        """Calculate CRC32 using the given table.
+        """Calculate CRC16 using the given table.
         `data`      - data for calculating CRC, must be bytes
         `crc`       - initial value
         `table`     - table for caclulating CRC (list of 256 integers)
@@ -123,21 +131,25 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         table = CRC32_MPEG_TABLE
         for byte in data: 
             crc = (crc << 8) ^ table[((crc >> 24) ^ byte) & 0xFF]
-    
-        return format(crc & 0xFFFFFFFF, '032b')
+        
+        #Take last 32 bits of the value 
+        crc = (crc & 0xFFFFFFFF)
+        
+        #turn into binary
+        #crc = format(crc, 'b') wrong
+        crc = crc = '{0:b}'.format(crc).rjust(32,'0') #use to append 0 padding at the start
+        return crc
     #Thanks to https://github.com/Michaelangel007/crc32 for demystifiying crc32
     #After the payload has been padded and appended a crc32 value, turbo encoding need to be done accordingly
 
-
-    
     permutation_primes = {5: [47,17,233,127,239,139,199,163],
                           11: [127,191,241,5,83,109,107,179],
                           17: [211,61,227,239,181,79,73,193],
-                          19: [137,101,223,41,67,131,61,47]} # list of permutation primes associated with a linkID
+                          19: [137,101,223,41,67,131,61,47]} #List of permuatationn primes associated with a link ID
     k1_k2 = {5: [2,144],
              11: [2,216],
              17: [6,312],
-             19: [16,351]} #list of k1 and k2 value for each link ID, used to calculate the permutation numbers
+             19: [16,351]} #k values associated with different link IDs
 
     def calculate_permutation(self,s, k1, k2, primes):
         '''
@@ -156,27 +168,30 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     def interleave(self, input, k1, k2, primes):
         #create an empty list to contain the permutated indices
         permuted_indices = []
-        #iterate with s values from 1->k, and use this to compute the permutation number
+        #iterate with s values from 1-k, and use this to compute the permutated indice
         for s in range(1,k1*k2+1):
             #append the new permutated indices:
             #indices are from 1-k.
         
             permuted_indices.append(self.calculate_permutation(s,k1,k2,primes))
             #print(s)
+
         #check for duplicates in permuted indics
         if len(set(permuted_indices))!=len(permuted_indices):
             print("something is wrong, an duplication exists")
     
-        # Generate a list of 0, with length similar to the input. 
+        #Generate a list of 0 same length as input. 
         interleaved_list = [0] * len(input)
+        #print(interleaved_list)
         i = 0
-
         for permuted_indice in permuted_indices:
-            # s bit read out should be pi(s). So 0 bit out should be input(pi(0)). Permutated indice contains values from 1-288, need to subtract 1 since python is 0 indexed
+            #s bit read out should be pi(s), so if pi(1)=2 then input(2) should be the first 
             interleaved_list[i] = input[permuted_indice-1]
             i += 1
-
-        return ''.join(interleaved_list)
+        
+        interleaved_string = ''.join(interleaved_list)
+        
+        return interleaved_string
 
 
 
@@ -186,10 +201,11 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         specification of VDES. See https://www.itu.int/dms_pubrec/itu-r/rec/m/R-REC-M.2092-1-202202-I!!PDF-E.pdf, 
         Annex 2 for more information
         '''
-        # Initialize shift register, should allways start with 0's
-        shift_register = [0, 0, 0]
+        #Initialize the feedback register, should allways start start with 0 in each register
+        D = [0, 0, 0]
+        
 
-        # Prepare output lists
+        #prepare output lists
         X = []
         Y1 = []
         Y2 = []
@@ -202,21 +218,19 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
         # Iterate over input bits
         for bit in input_bits:
-            # Compute first xor operations
-            xor = shift_register[2]^shift_register[1]^bit
+            #Compute first xor operations
+            xor = D[2]^D[1]^bit
 
 
             # Calculate output bits
             x = bit
-            y1 = xor ^ shift_register[0] ^ shift_register[2]
-            y2 =  xor ^ shift_register[0] ^ shift_register[1] ^ shift_register[2]
+            y1 = xor ^ D[0] ^ D[2]
+            y2 =  xor ^ D[0] ^ D[1] ^ D[2]
 
-            #update the shift register
-            shift_register.insert(0, xor)
-            shift_register.pop()
-
-
-            #append the outpit data, to its associated list. 
+            #update the feedback register
+            D.insert(0, xor)
+            D.pop()
+            #append the output bits to the appropriate list
             X.append(x)
             Y1.append(y1)
             Y2.append(y2)
@@ -228,40 +242,41 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         # This is done to ensure, that the shift register contains 3 0's. The tails are then 
         # Appended according to the tail puncturing pattern associated with a given link ID. 
 
+        #prepare tail lists
         X_tail = []
         Y1_tail = []
         Y2_tail = []
 
 
-        #print(shift_register)
+        #print(D)
         for i in range(0,3):
-            xor1 = shift_register[1]^shift_register[2]
+            xor1 = D[1]^D[2]
             xor = xor1^xor1
 
-            
+            #compute the output bits for the tail
             x_tail = xor1
-            y1_tail = xor ^ shift_register[0] ^ shift_register[2]
-            y2_tail =  xor ^ shift_register[0] ^ shift_register[1] ^ shift_register[2]
-
-            shift_register.insert(0, xor)
-            shift_register.pop()
-
+            y1_tail = xor ^ D[0] ^ D[2]
+            y2_tail =  xor ^ D[0] ^ D[1] ^ D[2]
+            #update the feedback register
+            D.insert(0, xor)
+            D.pop()
+            #append output bits to the appropriate tail list
             X_tail.append(x_tail)
             Y1_tail.append(y1_tail)
             Y2_tail.append(y2_tail)
 
-        #print(shift_register)
+        #print(D)
         return X, Y1, Y2, X_tail, Y1_tail, Y2_tail
     
     puncture_pattern = {5: [[1,0,1,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,1]],
                         11: [[1,1,0,0,0,0], [1,0,0,0,1,0]],
                         17: [[1,1,0,0,0,0], [1,0,0,0,1,0]],
-                        19: [[1,0,1,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,1]]}
+                        19: [[1,0,1,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,0], [1,0,0,0,0,1]]}#puncture pattern for the k first clocks for linkIDs
     
     puncture_pattern_tail = {5: [[1,0,1,0,0,0], [1,0,1,0,0,0], [1,0,0,0,0,0], [0,0,0,1,0,1], [0,0,0,1,0,1], [0,0,0,1,0,0]],
                              11: [[1,1,0,0,0,0], [1,1,0,0,0,0], [1,0,0,0,0,0], [0,0,0,1,1,0], [0,0,0,1,1,0], [0,0,0,1,0,0]],
                              17: [[1,1,0,0,0,0], [1,1,0,0,0,0], [1,0,0,0,0,0], [0,0,0,1,1,0], [0,0,0,1,1,0], [0,0,0,1,0,0]],
-                             19: [[1,0,1,0,0,0], [1,0,1,0,0,0], [1,0,1,0,0,0], [0,0,0,1,0,1], [0,0,0,1,0,1], [0,0,0,1,0,1]]}
+                             19: [[1,0,1,0,0,0], [1,0,1,0,0,0], [1,0,1,0,0,0], [0,0,0,1,0,1], [0,0,0,1,0,1], [0,0,0,1,0,1]]}#puncture pattern for the 6 last clocks
 
     def puncturing(self, puncture_pattern, x, y0, y1, x_, y0_, y1_):
         '''
@@ -332,34 +347,32 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         return s
     
     def bitscrambling(self, input_bits):
-        # Initialize the initialization squence according to the ITU specification
+        #Initialize the initialization squence according to the ITU specification
         init_sequence = [1,0,0,1,0,1,0,1,0,0,0,0,0,0,0]
 
-        #intialize empty output 
+        #initialize empty output string
         output_bits = ''
-
-        #for every bit in the input
         for bit in input_bits:
             input_bit = int(bit)
             
-            # Compute the feedback bit by XORing the specified bits in the polynomial, namely xor bit 14 and 15 from init sequence
+            #compute the feedback bit by XORing the specified bits in the polynomial, namely xor bit 14 and 15 from lfsr
             feedback_bit = 0
             feedback_bit = init_sequence[len(init_sequence)-2]^init_sequence[len(init_sequence)-1]
             
-            # Shift the sequence to the right by one and inserting the feedback bit at 0
+            #Update the initialization sequence, inserting the feedback bit at the left
             init_sequence.pop()
             init_sequence.insert(0, feedback_bit)
             
-            # XOR the input bit with the feedback bit to get the output bit
+            #XOR the input bit with the feedback bit
             output_bit = input_bit ^ feedback_bit
-
-            #append the output bit to the final string
+            #append the output bit to the output string
             output_bits += str(output_bit)
         
         return output_bits
     
     
     def bitstring_to_bytes(self, bitstring):
+        '''Turn bitstring to bytes from the ais frame builder'''
         result = bytearray()
 
         for i in range(0, len(bitstring), 8):
@@ -370,6 +383,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
     
     
     def append_bytes_together(self, bytes1, bytes2):
+        '''Append bytes together from the ais frame builder'''
         result = bytearray(bytes1)
         for byte in bytes2:
             result.append(byte)
@@ -383,6 +397,55 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
                                   17:'10000111001101110010010011100101',
                                   19:'10001111010010000010010000011010'}
                                   
+    linkID_reverse = {11:'10110111011101000100001100111110',
+                      17:'11100001111011000010010010100111',
+                      19:'11110001000100100010010001011000'}
+    
+    mapping_purple = {'00': [-1,0],
+                  '01': [0,1],
+                  '10': [0,-1],
+                  '11':[1,0]}#QPSK mapping from the ITU, purple points
+    
+    mapping_green = {'11': [0.7,0.7],
+                 '01': [-0.7,0.7],
+                 '00': [-0.7, -0.7],
+                 '10': [0.7, -0.7]}#QPSK mapping from ITU, green points
+    
+    
+    def compute_mapping_bytes(self,final):
+        
+        tmp = ""
+        x = 0
+        mapping = []
+        for i in range(0,len(final)-1,2): #For every 2 bit
+            #append the second bit
+            tmp = final[i]+final[i+1]
+            if x%2 == 0:
+                #map every even bit index to green
+                mapping.append(self.mapping_green[tmp])
+            else: 
+                #map every odd bit index to purple
+                mapping.append(self.mapping_purple[tmp])
+            x+= 1
+        
+            
+        return mapping
+    
+    
+    def bytes_to_bitstring(self, bytes):
+        #turn byte to bitstring form ais framebuilder
+        return bin(int.from_bytes(bytes, 'big'))[2:].rjust(len(bytes)*8,'0')
+        
+        
+    def reverse_bit_order(self, bytes):
+        #Reverse the bit order for a byte to ensure correct endiannes, from ais framebuilder
+        bitstring = self.bytes_to_bitstring(bytes)
+
+        for i in range(0,len(bitstring),8):
+            block = bitstring[i:i+8]
+            bitstring = bitstring[:i] + block[::-1] + bitstring[i+8:]
+
+        return bitstring
                                
     
     def build_frame(self):
@@ -397,6 +460,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         
         #compute crc
         
+        
         int_payload = int(padded_input,2)
 	
         byte_payload = int_payload.to_bytes(len(padded_input)//8, 'big')
@@ -407,7 +471,21 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         
         payload_crc = padded_input + crc
         
-        print(crc)
+        #If linkID, 11, 17 or 19, apply endianess
+        
+        if self.LinkID != 5:
+            #turn bitstring into bytes
+            int_payload = int(payload_crc,2)
+            byte_payload = int_payload.to_bytes(len(payload_crc)//8,'big')
+            
+            #reverse the bit order of the byte
+            payload_crc = self.reverse_bit_order(byte_payload)
+            #append the reverse bit order for each byte for syncword and link ID
+            syncword = '001111110010101110011000010' 
+            linkID_code = self.linkID_reverse[self.LinkID]
+        
+        
+        
 
         #rearrange the input, according to the link ID parameters
 
@@ -429,7 +507,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
         tailbits = self.puncturing_tail(self.puncture_pattern_tail[self.LinkID], x_tail, y0_tail, y1_tail, x_per_tail, y0_per_tail, y1_per_tail)
         
-        print(tailbits)
+        
 
         #append the tail bits to the turbo encoded output
 
@@ -440,12 +518,54 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         scrambled_data = self.bitscrambling(turbo_encoding_done)
         
 
-        final_frame = syncword + linkID_code + scrambled_data
+        syncword_2x = ""
+        
+        #double every digit in syncword, since 1 maps to qpsk(1 1), and 0 maps to qpsk(0 0)
+        for bit in syncword:
+                syncword_2x += 2*(bit)
+                
+        
+        final = syncword_2x + linkID_code + scrambled_data
         
         print(scrambled_data)
+        print("done")
+        
+        
+        #mapping = self.compute_mapping_bytes(final)
+        
+        #print(mapping)
+        
+        tmp = ""
+        extra_bit = "" 
+        x = 0
+        for i in range(0,len(final)-1,2):
+            tmp = final[i]+final[i+1]
+            if x%2 == 0:
+                #mapping.append(mapping_green[tmp])
+                tmp += "0"
+                #print(tmp)
+                extra_bit = extra_bit + tmp
+            else:
+                #mapping.append(mapping_purple[tmp])
+                tmp += "1"
+                extra_bit = extra_bit + tmp
+            x += 1
+
+        #11011111011111011100000111011100011100011100000100000100011111000100011100011100011101001
+
+        #where the syncword bits are 11x or 00x, where x states if it is to be mapped to green or purple. 
+
+        #linkword and scrambled data is 00x, 01x, 10x, 11x,
+
+        #(len(extra_bit)==len(final)*3/2)
 
         
-        return final_frame
+        
+        #print(mapping)
+        
+	
+        
+        return extra_bit
 
     
 
@@ -469,4 +589,3 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             output_length = 0
         
         return output_length
-
