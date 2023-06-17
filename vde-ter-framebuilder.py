@@ -110,24 +110,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
       0xafb010b1, 0xab710d06, 0xa6322bdf, 0xa2f33668,
       0xbcb4666d, 0xb8757bda, 0xb5365d03, 0xb1f740b4
         ]
-    '''
-    def crc32xmodem(self, data, crc=0xFFFFFFFF):  # 0xffff
-        """Calculate CRC-CCITT (XModem) variant of CRC16.
-        `data`      - data for calculating CRC, must be bytes
-        `crc`       - initial value
-        Return calculated value of CRC
-        """
-        return self._crc32(data, self.CRC32_MPEG_TABLE, crc)
-    '''
     
     def _crc32(self, data, CRC32_MPEG_TABLE, crc=0xFFFFFFFF):
 
-        """Calculate CRC16 using the given table.
-        `data`      - data for calculating CRC, must be bytes
-        `crc`       - initial value
-        `table`     - table for caclulating CRC (list of 256 integers)
-        Return calculated value of CRC in bin format. 
-        """
         table = CRC32_MPEG_TABLE
         for byte in data: 
             crc = (crc << 8) ^ table[((crc >> 24) ^ byte) & 0xFF]
@@ -137,7 +122,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         
         #turn into binary
         #crc = format(crc, 'b') wrong
-        crc = crc = '{0:b}'.format(crc).rjust(32,'0') #use to append 0 padding at the start
+        crc = '{0:b}'.format(crc).rjust(32,'0') #use to append 0 padding at the start
         return crc
     #Thanks to https://github.com/Michaelangel007/crc32 for demystifiying crc32
     #After the payload has been padded and appended a crc32 value, turbo encoding need to be done accordingly
@@ -191,7 +176,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         
         interleaved_string = ''.join(interleaved_list)
         
-        return interleaved_string
+        return ''.join(interleaved_list)
 
 
 
@@ -210,15 +195,9 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         Y1 = []
         Y2 = []
         xor = 0
-        #Turn string into bits
-        input_bits =[]
-        
         for bit in input:
-            input_bits.append(int(bit))
-
-        # Iterate over input bits
-        for bit in input_bits:
             #Compute first xor operations
+            bit = int(bit)
             xor = D[2]^D[1]^bit
 
 
@@ -346,17 +325,16 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         #print(test)
         return s
     
+    #adapted from https://stackoverflow.com/questions/61229326/is-my-bit-scrambler-implementation-flawed
     def bitscrambling(self, input_bits):
         #Initialize the initialization squence according to the ITU specification
         init_sequence = [1,0,0,1,0,1,0,1,0,0,0,0,0,0,0]
 
-        #initialize empty output string
         output_bits = ''
         for bit in input_bits:
             input_bit = int(bit)
             
             #compute the feedback bit by XORing the specified bits in the polynomial, namely xor bit 14 and 15 from lfsr
-            feedback_bit = 0
             feedback_bit = init_sequence[len(init_sequence)-2]^init_sequence[len(init_sequence)-1]
             
             #Update the initialization sequence, inserting the feedback bit at the left
@@ -365,7 +343,6 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             
             #XOR the input bit with the feedback bit
             output_bit = input_bit ^ feedback_bit
-            #append the output bit to the output string
             output_bits += str(output_bit)
         
         return output_bits
@@ -528,7 +505,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
         final = syncword_2x + linkID_code + scrambled_data
         
         print(scrambled_data)
-        print("done")
+        #print("done")
         
         
         #mapping = self.compute_mapping_bytes(final)
@@ -571,11 +548,13 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
 
     def work(self, input_items, output_items):
         
-        time.sleep(5)
+        time.sleep(1)
 
         final_frame = self.build_frame()
         
         final_frame = [k for k in self.bitstring_to_bytes(final_frame)]
+        
+        print(final_frame)
 
 
         if len(output_items[0]) >= len(final_frame):
@@ -589,3 +568,7 @@ class blk(gr.sync_block):  # other base classes are basic_block, decim_block, in
             output_length = 0
         
         return output_length
+
+
+
+        
