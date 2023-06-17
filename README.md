@@ -1,7 +1,7 @@
 # grc-ais-vdes-framebuilder
 Python block AIS Framebuilder written for GNU Radio Companion >=3.8. (ITU-R_M.1371-5 compliant).
 
-Python block VDE-TER Framebuilder written for GNU Radio Companion >=3.8. (ITU-R_M.2092-1 compliant).
+Python block VDE-TER Framebuilder written for GNU Radio Companion >=3.8. (ITU-R_M.2092-1 compliant for ASM, some uncertainties regarding endianness for vde-ter).
 
 ![flowgraph](./ais_tx.png "Gnu Radio flowgraph for AISTX")
 
