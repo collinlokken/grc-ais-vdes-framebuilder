@@ -78,7 +78,7 @@ def text_using_6_bit_ascii(text, text_sequence_nr, last_sequence):
 
 
 
-#copied from AIS_TX, AIVDM encoder: https://github.com/zwh2/aistx/blob/master/apps/AIVDM_Encoder.py
+#copied from AIS_TX, AIVDM encoder: https://github.com/trendmicro/ais/blob/master/AIVDM_Encoder.py
 def encode_string(string):
 	vocabolary = "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^- !\"#$%&'()*+,-./0123456789:;<=>?"
 	encoded_string = ""
